@@ -22,11 +22,7 @@ jobs:
         with:
           python-version: ${{ matrix.python_version }}
 
-      - name: Sync dev tools (workspace)
-        run: uv sync
-
-      - name: Sync deps (package)
-        working-directory: ${{ matrix.pkg }}
+      - name: Sync deps
         run: uv sync
 
       - name: Lint (ruff)

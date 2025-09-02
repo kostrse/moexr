@@ -58,7 +58,6 @@ jobs:
           python-version: "3.13"
 
       - name: Sync deps
-        working-directory: ${{ steps.meta.outputs.pkg_dir }}
         run: uv sync
 
       - name: Build distributions
