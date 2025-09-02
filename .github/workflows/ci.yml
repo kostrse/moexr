@@ -27,7 +27,7 @@ jobs:
 
       - name: Sync deps (package)
         working-directory: ${{ matrix.pkg }}
-        run: uv sync
+        run: uv sync --inexact
 
       - name: Lint (ruff)
         working-directory: ${{ matrix.pkg }}
