@@ -1,0 +1,79 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - "moexr-v*"
+      - "moexr-client-v*"
+      - "moexr-pandas-v*"
+      - "moexr-ql-v*"
+      - "moexr-redis-v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to publish (e.g., moexr-client-v1.2.3)
+        required: false
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  MAP_moexr-client: packages/moexr-client
+  MAP_moexr: packages/moexr
+  MAP_moexr-pandas: packages/moexr-pandas
+  MAP_moexr-ql: packages/moexr-ql
+  MAP_moexr-redis: packages/moexr-redis
+
+jobs:
+  publish:
+    name: Publish package to PyPI
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine tag and package
+        id: meta
+        shell: bash
+        run: |
+          TAG="${{ github.ref_name }}"
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          PREFIX="${TAG%-v*}"
+          echo "prefix=$PREFIX" >> "$GITHUB_OUTPUT"
+          PKG_DIR_VAR="MAP_${PREFIX//-/_}"
+          PKG_DIR="${!PKG_DIR_VAR}"
+          if [ -z "$PKG_DIR" ]; then
+            echo "Could not map tag prefix '$PREFIX' to a package directory."
+            exit 1
+          fi
+          echo "pkg_dir=$PKG_DIR" >> "$GITHUB_OUTPUT"
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+
+      - name: Sync deps
+        working-directory: ${{ steps.meta.outputs.pkg_dir }}
+        run: uv sync
+
+      - name: Build distributions
+        working-directory: ${{ steps.meta.outputs.pkg_dir }}
+        run: uv build
+
+      - name: Attach dists to GitHub Release (if present)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.meta.outputs.pkg_dir }}/dist/*
+
+      - name: Publish to PyPI (Trusted Publishing, with PEP 740 attestations)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: ${{ steps.meta.outputs.pkg_dir }}/dist
+          attestations: true

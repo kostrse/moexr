@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  validate:
+    name: Validate ${{ matrix.pkg }} on py${{ matrix.python_version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python_version: [ "3.11", "3.12", "3.13" ]
+        pkg:
+          - packages/moexr-client
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python_version }}
+
+      - name: Sync deps (package)
+        working-directory: ${{ matrix.pkg }}
+        run: uv sync
+
+      - name: Lint (ruff)
+        working-directory: ${{ matrix.pkg }}
+        run: |
+          uv run ruff check .
+
+      - name: Type check (mypy)
+        working-directory: ${{ matrix.pkg }}
+        run: uv run mypy .
+
+      - name: Tests
+        working-directory: ${{ matrix.pkg }}
+        env:
+          PYTHONWARNINGS: default
+        run: uv run pytest -q
+
+      - name: Build (sanity)
+        working-directory: ${{ matrix.pkg }}
+        run: uv build
