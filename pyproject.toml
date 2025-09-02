@@ -1,0 +1,41 @@
+[project]
+name = "moexr-workspace"
+version = "0.0.0"
+requires-python = ">=3.11"
+dependencies = [
+  "uv-build>=0.8.14",
+]
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[dependency-groups]
+dev = [
+  "pytest~=8.4",
+  "pytest-asyncio~=1.1",
+  "coverage[toml]",
+  "ruff~=0.12",
+  "mypy~=1.11",
+  "aioresponses~=0.7",
+]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.ruff]
+line-length = 100
+lint.select = ["E", "F", "I", "UP", "B"]
+lint.ignore = ["E501", "UP045"]
+format.quote-style = "single"
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+asyncio_mode = "auto"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_ignores = true
