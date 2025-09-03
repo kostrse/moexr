@@ -19,27 +19,15 @@ class MoexClient:
             headers = {
                 'Authorization': 'Bearer ' + access_token,
             }
-            self._client_session = aiohttp.ClientSession(
-                base_url='https://apim.moex.com/', headers=headers
-            )
+            self._client_session = aiohttp.ClientSession(base_url='https://apim.moex.com/', headers=headers)
 
         self._req_semaphore = asyncio.Semaphore(4)
         self._lang = lang
 
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self._client_session.close()
-
-    async def req(
-        self, path: list[str], query: Optional[dict[str, Any]] = None
-    ) -> dict[str, MoexTableResult]:
+    async def req(self, path: list[str], query: Optional[dict[str, Any]] = None) -> dict[str, MoexTableResult]:
         return await self._req(path, query)
 
-    async def req_table(
-        self, path: list[str], table_name: str, query: Optional[dict[str, Any]] = None
-    ) -> MoexTableResult:
+    async def req_table(self, path: list[str], table_name: str, query: Optional[dict[str, Any]] = None) -> MoexTableResult:
         query_params: dict[str, Any] = {}
         if query:
             query_params.update({table_name + '.' + key: value for key, value in query.items()})
@@ -49,15 +37,9 @@ class MoexClient:
         result = await self._req(path, query_params)
         return result[table_name]
 
-    async def req_table_paginated(
-        self,
-        path: list[str],
-        table_name: str,
-        query: Optional[dict[str, Any]] = None,
-        limit: Optional[int] = None,
-    ) -> MoexTableResult:
+    async def req_table_paginated(self, path: list[str], table_name: str, query: Optional[dict[str, Any]] = None, limit: Optional[int] = None) -> MoexTableResult:
         if limit is not None and limit <= 0:
-            raise ValueError('limit must be a positive')
+            raise ValueError("limit must be a positive")
 
         offset = 0
         remaining = limit
@@ -97,29 +79,21 @@ class MoexClient:
         assert merged_result is not None
         return merged_result
 
-    async def _req(
-        self, path: list[str], query: dict[str, Any] | None
-    ) -> dict[str, MoexTableResult]:
+    async def _req(self, path: list[str], query: dict[str, Any] | None) -> dict[str, MoexTableResult]:
         query_params: dict[str, Any] = {}
         if query:
-            query_params.update(
-                {key: _format_query(value) for key, value in query.items() if value is not None}
-            )
+            query_params.update({key: _format_query(value) for key, value in query.items() if value is not None})
 
         query_params['lang'] = self._lang
 
         async with self._req_semaphore:
             try:
-                async with self._client_session.get(
-                    '/iss/' + '/'.join(path) + '.json', params=query_params
-                ) as resp:
+                async with self._client_session.get('/iss/' + '/'.join(path) + '.json', params=query_params) as resp:
                     if resp.status != 200:
-                        raise MoexClientError(f'Request failed with status code: {resp.status}')
+                        raise MoexClientError(f"Request failed with status code: {resp.status}")
 
                     result = await resp.json()
-                    return {
-                        key: MoexTableResult.from_result(value) for key, value in result.items()
-                    }
+                    return {key: MoexTableResult.from_result(value) for key, value in result.items()}
             except Exception as e:
                 raise MoexClientError(str(e)) from e
 
@@ -140,7 +114,7 @@ def _get_req_limit(limit: int | None) -> int:
         return _REQ_LIMITS[-1]
 
     if limit <= 0:
-        raise ValueError('request limit must be greater than 0')
+        raise ValueError("request limit must be greater than 0")
 
     idx = bisect.bisect_left(_REQ_LIMITS, limit)
 

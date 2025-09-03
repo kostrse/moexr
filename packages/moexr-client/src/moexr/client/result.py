@@ -27,12 +27,7 @@ class MoexTableResult:
     _data_partitions: list[list[Row]]
     _data_offsets: list[int]
 
-    def __init__(
-        self,
-        metadata: dict[str, ColumnMetadataEntry],
-        columns: list[str],
-        partitions: list[list[Row]],
-    ) -> None:
+    def __init__(self, metadata: dict[str, ColumnMetadataEntry], columns: list[str], partitions: list[list[Row]]) -> None:
         self._metadata = metadata
         self._columns = columns
         self._data_partitions = partitions
@@ -106,18 +101,14 @@ class MoexTableResult:
         self._rebuild_data_offsets()
 
     def concat(self, other: 'MoexTableResult') -> 'MoexTableResult':
-        return MoexTableResult(
-            self._metadata,
-            self._columns,
-            [
-                *self._data_partitions,
-                *other._data_partitions,
-            ],
-        )
+        return MoexTableResult(self._metadata, self._columns, [
+            *self._data_partitions,
+            *other._data_partitions,
+        ])
 
     def take(self, n: int) -> 'MoexTableResult':
         if n < 0:
-            raise ValueError('n must be positive')
+            raise ValueError("n must be positive")
 
         if n >= self.row_count():
             return self
