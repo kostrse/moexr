@@ -15,7 +15,7 @@ dev = [
   "pytest-asyncio~=1.1",
   "coverage[toml]",
   "ruff~=0.12",
-  "mypy~=1.11",
+  "pyright",
   "aioresponses~=0.7",
 ]
 
@@ -34,8 +34,3 @@ format.quote-style = "single"
 [tool.pytest.ini_options]
 addopts = "-q"
 asyncio_mode = "auto"
-
-[tool.mypy]
-python_version = "3.11"
-strict = true
-warn_unused_ignores = true

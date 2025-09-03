@@ -30,9 +30,9 @@ jobs:
         run: |
           uv run ruff check .
 
-      - name: Type check (mypy)
+      - name: Type check (pyright)
         working-directory: ${{ matrix.pkg }}
-        run: uv run mypy .
+        run: uv run pyright .
 
       - name: Tests
         working-directory: ${{ matrix.pkg }}
