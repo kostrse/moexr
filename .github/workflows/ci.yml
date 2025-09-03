@@ -23,7 +23,7 @@ jobs:
           python-version: ${{ matrix.python_version }}
 
       - name: Sync deps
-        run: uv sync
+        run: uv sync --locked
 
       - name: Lint (ruff)
         working-directory: ${{ matrix.pkg }}
