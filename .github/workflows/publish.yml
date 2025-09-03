@@ -18,11 +18,11 @@ permissions:
   id-token: write
 
 env:
-  MAP_moexr-client: packages/moexr-client
   MAP_moexr: packages/moexr
-  MAP_moexr-pandas: packages/moexr-pandas
-  MAP_moexr-ql: packages/moexr-ql
-  MAP_moexr-redis: packages/moexr-redis
+  MAP_moexr_client: packages/moexr-client
+  MAP_moexr_pandas: packages/moexr-pandas
+  MAP_moexr_ql: packages/moexr-ql
+  MAP_moexr_redis: packages/moexr-redis
 
 jobs:
   publish:
