@@ -34,3 +34,6 @@ format.quote-style = "single"
 [tool.pytest.ini_options]
 addopts = "-q"
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+pythonpath = ["packages/moexr-client/src"]
+testpaths = ["packages/moexr-client/tests"]
