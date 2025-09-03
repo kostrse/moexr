@@ -9,12 +9,14 @@ jobs:
   validate:
     name: Validate ${{ matrix.pkg }} on py${{ matrix.python_version }}
     runs-on: ubuntu-latest
+
     strategy:
       fail-fast: false
       matrix:
         python_version: [ "3.11", "3.12", "3.13" ]
         pkg:
-          - packages/moexr-client
+          - moexr-client
+
     steps:
       - uses: actions/checkout@v4
 
