@@ -28,7 +28,7 @@ class MoexClient:
         return await self._req(path, query)
 
     async def req_table(self, path: list[str], table_name: str, query: Optional[dict[str, Any]] = None) -> MoexTableResult:
-        query_params = {}
+        query_params: dict[str, Any] = {}
         if query:
             query_params.update({table_name + '.' + key: value for key, value in query.items()})
 
@@ -38,6 +38,9 @@ class MoexClient:
         return result[table_name]
 
     async def req_table_paginated(self, path: list[str], table_name: str, query: Optional[dict[str, Any]] = None, limit: Optional[int] = None) -> MoexTableResult:
+        if limit is not None and limit <= 0:
+            raise ValueError("limit must be a positive")
+
         offset = 0
         remaining = limit
 
@@ -46,7 +49,7 @@ class MoexClient:
         while remaining is None or remaining > 0:
             req_limit = _get_req_limit(remaining)
 
-            query_params = {}
+            query_params: dict[str, Any] = {}
             if query:
                 query_params.update(query)
 
@@ -73,10 +76,11 @@ class MoexClient:
 
             offset += resp_count
 
+        assert merged_result is not None
         return merged_result
 
     async def _req(self, path: list[str], query: dict[str, Any] | None) -> dict[str, MoexTableResult]:
-        query_params = {}
+        query_params: dict[str, Any] = {}
         if query:
             query_params.update({key: _format_query(value) for key, value in query.items() if value is not None})
 

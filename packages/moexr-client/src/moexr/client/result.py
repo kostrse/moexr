@@ -2,16 +2,22 @@ import bisect
 import itertools
 from collections.abc import Iterator
 from datetime import date
-from typing import Any
+from typing import Any, TypedDict
 
 RowValue = Any
 Row = list[RowValue]
 
 
-class ColumnMetadataEntry(dict):
+class ColumnMetadataEntry(TypedDict):
     type: str
     bytes: int | None
     max_size: int | None
+
+
+class MoexTableResultState(TypedDict):
+    metadata: dict[str, ColumnMetadataEntry]
+    columns: list[str]
+    data: list[Row]
 
 
 class MoexTableResult:
@@ -126,16 +132,16 @@ class MoexTableResult:
 
         return MoexTableResult(self._metadata, self._columns, partitions)
 
-    def __getstate__(self):
+    def __getstate__(self) -> MoexTableResultState:
         self._flatten_data()
-        state = {
+        state: MoexTableResultState = {
             'metadata': self._metadata,
             'columns': self._columns,
             'data': self._data_partitions[0],
         }
         return state
 
-    def __setstate__(self, state):
+    def __setstate__(self, state: MoexTableResultState):
         self._metadata = state['metadata']
         self._columns = state['columns']
         self._data_partitions = [state['data']]
