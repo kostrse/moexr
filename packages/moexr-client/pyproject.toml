@@ -32,3 +32,7 @@ build-backend = "uv_build"
 [tool.uv.build-backend]
 module-root = "src"
 module-name = "moexr.client"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
