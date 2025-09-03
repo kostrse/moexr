@@ -26,20 +26,19 @@ jobs:
         run: uv sync --locked
 
       - name: Lint (ruff)
-        working-directory: ${{ matrix.pkg }}
         run: |
-          uv run ruff check .
+          uv run --package ${{ matrix.pkg }} ruff check .
 
       - name: Type check (pyright)
-        working-directory: ${{ matrix.pkg }}
-        run: uv run pyright .
+        run: |
+          uv run --package ${{ matrix.pkg }} pyright .
 
       - name: Tests
-        working-directory: ${{ matrix.pkg }}
         env:
           PYTHONWARNINGS: default
-        run: uv run pytest -q
+        run: |
+          uv run --package ${{ matrix.pkg }} pytest -q
 
       - name: Build (sanity)
-        working-directory: ${{ matrix.pkg }}
-        run: uv build
+        run: |
+          uv build --package ${{ matrix.pkg }}

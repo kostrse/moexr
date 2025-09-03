@@ -34,5 +34,6 @@ module-root = "src"
 module-name = "moexr.client"
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+asyncio_mode = "auto"
 pythonpath = ["src"]
+testpaths = ["tests"]
