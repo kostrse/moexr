@@ -16,6 +16,7 @@ jobs:
         python_version: [ "3.11", "3.12", "3.13" ]
         pkg:
           - moexr-client
+          - moexr-pandas
 
     steps:
       - uses: actions/checkout@v4

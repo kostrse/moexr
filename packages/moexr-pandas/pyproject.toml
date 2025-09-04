@@ -1,0 +1,46 @@
+[project]
+name = "moexr-pandas"
+version = "0.1.0"
+description = "Pandas DataFrames support for moexr tables"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [{ name = "Sergey Kostrukov" }]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Financial and Insurance Industry",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Typing :: Typed",
+  "Operating System :: OS Independent",
+  "Topic :: Software Development :: Libraries",
+  "Topic :: Office/Business :: Financial :: Investment",
+]
+dependencies = [
+  "moexr-client>=0.1.0",
+  "numpy>=1.23.2; python_version=='3.11'",
+  "numpy>=1.26.0; python_version>='3.12'",
+  "pandas>=2.3,<3",
+]
+
+[tool.uv.sources]
+moexr-client = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.8.15,<0.9.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = "src"
+module-name = "moexr.pandas"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+pythonpath = ["src"]
+testpaths = ["tests"]
