@@ -34,10 +34,12 @@ jobs:
           uv run ruff check
 
       - name: Type check (pyright)
+        working-directory: packages/${{ matrix.pkg }}
         run: |
           uv run pyright .
 
       - name: Tests
+        working-directory: packages/${{ matrix.pkg }}
         env:
           PYTHONWARNINGS: default
         run: |
