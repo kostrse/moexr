@@ -1,10 +1,22 @@
 {
 	"name": "Debian with uv",
-	"image": "mcr.microsoft.com/devcontainers/base:debian",
-	
+	"image": "mcr.microsoft.com/devcontainers/base:trixie",
+
 	"features": {
 		"ghcr.io/devcontainers-extra/features/uv:1": {
 			"version": "latest"
+		}
+	},
+
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"charliermarsh.ruff",
+				"editorconfig.editorconfig",
+				"ms-python.pytest",
+				"ms-python.python",
+				"ms-python.vscode-pylance"
+			]
 		}
 	},
 
