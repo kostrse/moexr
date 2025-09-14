@@ -28,15 +28,15 @@ jobs:
       - name: Sync deps
         run: uv sync --locked
 
-      - name: Lint (ruff)
-        working-directory: packages/${{ matrix.pkg }}
-        run: |
-          uv run ruff check
-
       - name: Type check (pyright)
         working-directory: packages/${{ matrix.pkg }}
         run: |
           uv run pyright .
+
+      - name: Lint (ruff)
+        working-directory: packages/${{ matrix.pkg }}
+        run: |
+          uv run ruff check
 
       - name: Tests
         working-directory: packages/${{ matrix.pkg }}
