@@ -1,0 +1,14 @@
+{
+	"name": "Debian with uv",
+	"image": "mcr.microsoft.com/devcontainers/base:debian",
+	
+	"features": {
+		"ghcr.io/devcontainers-extra/features/uv:1": {
+			"version": "latest"
+		}
+	},
+
+	"postCreateCommand": "uv sync",
+
+	"remoteUser": "vscode"
+}
