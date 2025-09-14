@@ -3,15 +3,18 @@ from __future__ import annotations
 import json
 from datetime import date
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
-
 from moexr.client.result import MoexTableResult
+
+JsonObject = dict[str, Any]
+
 
 DATA_DIR = Path(__file__).parent / "data"
 
 
-def load_json(file_name: str, table_name: str) -> dict:
+def load_json(file_name: str, table_name: str) -> JsonObject:
     path = DATA_DIR / file_name
     with path.open("r", encoding="utf-8") as f:
         j = json.load(f)
@@ -20,24 +23,24 @@ def load_json(file_name: str, table_name: str) -> dict:
 
 class TestMoexTableResult:
     @pytest.fixture(scope="class")
-    def history_json(self) -> dict:
+    def history_json(self) -> JsonObject:
         return load_json("history.json", "history")
 
     @pytest.fixture(scope="class")
-    def table(self, history_json: dict) -> MoexTableResult:
-        return MoexTableResult.from_result(history_json)  # type: ignore[arg-type]
+    def table(self, history_json: JsonObject) -> MoexTableResult:
+        return MoexTableResult.from_result(history_json)
 
-    def test_row_count(self, history_json: dict, table: MoexTableResult):
+    def test_row_count(self, history_json: JsonObject, table: MoexTableResult):
         assert table.row_count() == len(history_json["data"])
 
-    def test_columns(self, history_json: dict, table: MoexTableResult):
-        assert len(table.columns) == len(history_json["columns"])  # columns
+    def test_columns(self, history_json: JsonObject, table: MoexTableResult):
+        assert len(table.columns) == len(history_json["columns"])
 
         # Spot check a few expected columns
         for column in ("BOARDID", "TRADEDATE", "SECID", "CLOSE"):
             assert table.has_column(column)
 
-    def test_value_types(self, history_json: dict, table: MoexTableResult):
+    def test_value_types(self, table: MoexTableResult):
         date_value = table.get_value(10, "TRADEDATE")
         assert date_value is not None and isinstance(date_value, date)
         assert date_value == date(2015, 5, 8)
@@ -61,12 +64,12 @@ class TestMoexTableResult:
 
 class TestBinarySearch:
     @pytest.fixture(scope="class")
-    def history_json(self) -> dict:
+    def history_json(self) -> JsonObject:
         return load_json("history.json", "history")
 
     @pytest.fixture(scope="class")
-    def table(self, history_json: dict) -> MoexTableResult:
-        return MoexTableResult.from_result(history_json)  # type: ignore[arg-type]
+    def table(self, history_json: JsonObject) -> MoexTableResult:
+        return MoexTableResult.from_result(history_json)
 
     def test_bisect_left_exact(self, table: MoexTableResult):
         column = 'TRADEDATE'
@@ -89,7 +92,7 @@ class TestBinarySearch:
 
         idx = table.bisect_left(lookup_date, column, exact_match=False)
         assert idx is not None
-        assert table.get_value(idx, column) >= lookup_date
+        assert cast(date, table.get_value(idx, column)) >= lookup_date
 
     def test_bisect_left_early(self, table: MoexTableResult):
         column = 'TRADEDATE'
@@ -97,7 +100,7 @@ class TestBinarySearch:
 
         idx = table.bisect_left(lookup_date, column, exact_match=False)
         assert idx is not None
-        assert table.get_value(idx, column) >= table.get_value(0, column)
+        assert cast(date, table.get_value(idx, column)) >= cast(date, table.get_value(0, column))
 
     def test_bisect_left_late(self, table: MoexTableResult):
         column = 'TRADEDATE'
