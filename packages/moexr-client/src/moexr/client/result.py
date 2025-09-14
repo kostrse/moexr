@@ -1,11 +1,15 @@
 import bisect
 import itertools
 from collections.abc import Iterator
-from datetime import date
-from typing import Any, TypedDict
+from datetime import date, datetime, time
+from typing import Any, Optional, TypedDict, TypeVar, cast
 
-RowValue = Any
-Row = list[RowValue]
+RawValue = str | int | float | None
+RawRow = list[RawValue]
+
+Value = str | int | float | date | time | datetime | None
+
+TLookupValue = TypeVar('TLookupValue', str, int, float, date, time, datetime)
 
 
 class ColumnMetadataEntry(TypedDict):
@@ -14,20 +18,20 @@ class ColumnMetadataEntry(TypedDict):
     max_size: int | None
 
 
-class MoexTableResultState(TypedDict):
+class _MoexTableResultState(TypedDict):
     metadata: dict[str, ColumnMetadataEntry]
     columns: list[str]
-    data: list[Row]
+    data: list[RawRow]
 
 
 class MoexTableResult:
     _metadata: dict[str, ColumnMetadataEntry]
     _columns: list[str]
     _column_index: dict[str, int]
-    _data_partitions: list[list[Row]]
+    _data_partitions: list[list[RawRow]]
     _data_offsets: list[int]
 
-    def __init__(self, metadata: dict[str, ColumnMetadataEntry], columns: list[str], partitions: list[list[Row]]) -> None:
+    def __init__(self, metadata: dict[str, ColumnMetadataEntry], columns: list[str], partitions: list[list[RawRow]]) -> None:
         self._metadata = metadata
         self._columns = columns
         self._data_partitions = partitions
@@ -47,21 +51,22 @@ class MoexTableResult:
 
     def get_column_index(self, column: str) -> int:
         if not self.has_column(column):
-            raise ValueError(f"The table doesn't have column '{column}'.")
+            raise ValueError(f"table doesn't have column '{column}'")
         return self._column_index[column]
 
     def get_column_metadata(self, column: str) -> ColumnMetadataEntry:
         if not self.has_column(column):
-            raise ValueError(f"The table doesn't have column '{column}'.")
+            raise ValueError(f"table doesn't have column '{column}'")
         return self._metadata[column]
 
-    def get_column(self, column: str) -> list[Any]:
+    def get_column(self, column: str) -> list[Value]:
         return list(self.iter_column(column))
 
-    def iter_column(self, column: str) -> Iterator[Any]:
+    def iter_column(self, column: str) -> Iterator[Value]:
         column_index = self.get_column_index(column)
+        column_metadata = self.get_column_metadata(column)
         for row in self.get_rows():
-            yield row[column_index]
+            yield _coerce_value(row[column_index], column, column_metadata)
 
     def row_count(self) -> int:
         if len(self._data_offsets) == 0:
@@ -71,7 +76,7 @@ class MoexTableResult:
     def __len__(self) -> int:
         return self.row_count()
 
-    def get_rows(self, index_from: int = 0) -> Iterator[Row]:
+    def get_rows(self, index_from: int = 0) -> Iterator[RawRow]:
         if index_from < 0:
             index_from = 0
         partition_index, local_index = self._get_local_index(index_from)
@@ -84,16 +89,64 @@ class MoexTableResult:
             partition_index += 1
             local_index = 0
 
-    def get_row(self, row_index: int) -> Row:
+    def get_row(self, row_index: int) -> RawRow:
         partition_index, local_index = self._get_local_index(row_index)
         if partition_index == -1:
-            raise ValueError(f"The table doesn't have row {row_index}.")
+            raise ValueError(f"table doesn't have row {row_index}")
         partition = self._data_partitions[partition_index]
         return partition[local_index]
 
-    def get_value(self, row_index: int, column: str) -> RowValue:
+    def get_value(self, row_index: int, column: str) -> Value:
         column_index = self.get_column_index(column)
-        return self.get_row(row_index)[column_index]
+        column_metadata = self.get_column_metadata(column)
+        raw_value = self.get_row(row_index)[column_index]
+        return _coerce_value(raw_value, column, column_metadata)
+
+    def bisect_left(self, lookup_value: TLookupValue, column: str, exact_match: bool) -> Optional[int]:
+        """Lower-bound binary search over the given column.
+
+        Semantics:
+        - exact_match=True: return the index of the row whose value equals the lookup value,
+          otherwise None if not found.
+        - exact_match=False: return the index of the first row whose value is >= the lookup value,
+          otherwise None if the lookup value is after the last value.
+        """
+        column_index = self.get_column_index(column)
+        column_metadata = self.get_column_metadata(column)
+
+        def get_value_by_index(row_index: int) -> TLookupValue:
+            row = self.get_row(row_index)
+            raw_value = row[column_index]
+            if raw_value is None:
+                raise ValueError(f"column '{column}' contains null value at row {row_index}, cannot perform binary search")
+            return cast(TLookupValue, _coerce_value(raw_value, column, column_metadata))
+
+        count = self.row_count()
+        if count == 0:
+            return None
+
+        # Search range is [lo, hi) over indices [0, count)
+        lo, hi = 0, count
+        while lo < hi:
+            mid = (lo + hi) // 2
+            mid_value = get_value_by_index(mid)
+            if mid_value < lookup_value:
+                lo = mid + 1
+            else:
+                hi = mid
+
+        insertion = lo  # the first index with value >= lookup value, may be == count (past the end)
+
+        if insertion == count:
+            # No value >= lookup value exists (lookup value is after the last available value)
+            return None
+
+        found_value = get_value_by_index(insertion)
+        if exact_match:
+            return insertion if found_value == lookup_value else None
+
+        # Inexact: return the first index with value >= lookup value
+        return insertion
 
     def extend(self, other: 'MoexTableResult'):
         for partition in other._data_partitions:
@@ -114,7 +167,7 @@ class MoexTableResult:
             return self
 
         remaining = n
-        partitions: list[list[Row]] = []
+        partitions: list[list[RawRow]] = []
         for partition in self._data_partitions:
             if remaining <= 0:
                 break
@@ -132,16 +185,16 @@ class MoexTableResult:
 
         return MoexTableResult(self._metadata, self._columns, partitions)
 
-    def __getstate__(self) -> MoexTableResultState:
+    def __getstate__(self) -> _MoexTableResultState:
         self._flatten_data()
-        state: MoexTableResultState = {
+        state: _MoexTableResultState = {
             'metadata': self._metadata,
             'columns': self._columns,
             'data': self._data_partitions[0],
         }
         return state
 
-    def __setstate__(self, state: MoexTableResultState):
+    def __setstate__(self, state: _MoexTableResultState):
         self._metadata = state['metadata']
         self._columns = state['columns']
         self._data_partitions = [state['data']]
@@ -171,34 +224,37 @@ class MoexTableResult:
         return partition_index, local_index
 
 
-def to_properties(table: MoexTableResult) -> dict[str, Any]:
-    property_name_index = table.get_column_index('name')
-    property_value_index = table.get_column_index('value')
-    property_type_index = table.get_column_index('type')
-    property_precision_index = table.get_column_index('precision')
+def _coerce_value(raw_value: RawValue, column: str, metadata: ColumnMetadataEntry) -> Value:
+    # All columns can have null values
+    if raw_value is None:
+        return None
 
-    properties: dict[str, RowValue] = {}
+    column_type = metadata['type']
 
-    for row in table.get_rows():
-        property_name = row[property_name_index]
-        property_value = row[property_value_index]
-        property_type = row[property_type_index]
-        property_precision = row[property_precision_index]
+    if column_type == 'string':
+        if type(raw_value) is str:
+            return raw_value
+    elif column_type == 'int32' or column_type == 'int64':
+        if type(raw_value) is int:
+            return raw_value
+        elif type(raw_value) is float:
+            return int(raw_value)
+    elif column_type == 'double':
+        if type(raw_value) is float:
+            return raw_value
+        elif type(raw_value) is int:
+            return float(raw_value)
+    elif column_type == 'date':
+        if type(raw_value) is str:
+            return date.fromisoformat(raw_value)
+    elif column_type == 'time':
+        if type(raw_value) is str:
+            return time.fromisoformat(raw_value)
+    elif column_type == 'datetime':
+        if type(raw_value) is str:
+            return datetime.fromisoformat(raw_value)
+    else:
+        raise ValueError(f"column '{column}' has unknown type '{column_type}'")
 
-        if property_type == 'string':
-            pass
-        elif property_type == 'number':
-            if property_precision == 0:
-                property_value = int(property_value)
-            else:
-                property_value = float(property_value)
-        elif property_type == 'boolean':
-            property_value = property_value == '1'
-        elif property_type == 'date':
-            property_value = date.fromisoformat(property_value)
-        else:
-            raise ValueError(f"The property '{property_name}' has unknown type '{property_type}'")
-
-        properties[property_name] = property_value
-
-    return properties
+    # Catch all unexpected values
+    raise ValueError(f"column '{column}' of type '{column_type}' does not allow value '{raw_value}' ({type(raw_value).__name__})")
