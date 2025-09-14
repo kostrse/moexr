@@ -118,7 +118,7 @@ class MoexTableResult:
             row = self.get_row(row_index)
             raw_value = row[column_index]
             if raw_value is None:
-                raise ValueError(f"column '{column}' contains null values, cannot perform binary search")
+                raise ValueError(f"column '{column}' contains null value at row {row_index}, cannot perform binary search")
             return cast(TLookupValue, _coerce_value(raw_value, column, column_metadata))
 
         count = self.row_count()
