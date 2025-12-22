@@ -11,7 +11,7 @@ members = ["packages/*"]
 
 [dependency-groups]
 dev = [
-  "pytest~=8.4",
+  "pytest~=9.0",
   "pytest-asyncio~=1.1",
   "coverage[toml]",
   "ruff~=0.13",
