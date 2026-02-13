@@ -2,9 +2,6 @@
 name = "moexr-workspace"
 version = "0.0.0"
 requires-python = ">=3.11"
-dependencies = [
-  "uv-build>=0.8.15",
-]
 
 [tool.uv.workspace]
 members = ["packages/*"]
@@ -20,6 +17,7 @@ dev = [
 ]
 
 [tool.uv]
+package = false
 default-groups = ["dev"]
 
 [tool.ruff]
