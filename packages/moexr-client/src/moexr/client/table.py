@@ -15,6 +15,8 @@ else:
 
 
 class ColumnMetadataEntry(TypedDict):
+    """Column type and size information from the MOEX ISS metadata block."""
+
     type: str
     bytes: int | None
     max_size: int | None
@@ -27,6 +29,14 @@ class _MoexTableState(TypedDict):
 
 
 class MoexTable:
+    """Columnar table of MOEX ISS API results.
+
+    Stores rows in partitions for efficient concatenation and supports
+    positional access by row index and column name. Values are automatically
+    coerced to native Python types (``date``, ``time``, ``datetime``, etc.)
+    when constructed via :meth:`from_result`.
+    """
+
     _metadata: dict[str, ColumnMetadataEntry]
     _columns: list[str]
     _columns_pos: dict[str, int]
@@ -42,6 +52,11 @@ class MoexTable:
 
     @classmethod
     def from_result(cls, result: dict[str, Any]) -> Self:
+        """Construct a table from a raw MOEX ISS JSON result block.
+
+        *result* must contain ``metadata``, ``columns``, and ``data`` keys.
+        Values are coerced to native Python types according to column metadata.
+        """
         metadata = result["metadata"]
         columns = result["columns"]
         rows = result["data"]
@@ -50,22 +65,35 @@ class MoexTable:
 
     @property
     def columns(self) -> list[str]:
+        """Return the list of column names."""
         return self._columns
 
     def has_column(self, column: str) -> bool:
+        """Return whether the table contains a column with the given name."""
         return column in self._columns
 
     def get_column_position(self, column: str) -> int:
+        """Return the zero-based index of *column*.
+
+        Raises:
+            ValueError: If the column does not exist.
+        """
         if not self.has_column(column):
             raise ValueError(f"table doesn't have column '{column}'")
         return self._columns_pos[column]
 
     def get_column_metadata(self, column: str) -> ColumnMetadataEntry:
+        """Return the metadata entry for *column*.
+
+        Raises:
+            ValueError: If the column does not exist.
+        """
         if not self.has_column(column):
             raise ValueError(f"table doesn't have column '{column}'")
         return self._metadata[column]
 
     def row_count(self) -> int:
+        """Return the total number of rows across all partitions."""
         if len(self._data_offsets) == 0:
             return 0
         return self._data_offsets[-1] + len(self._data_partitions[-1])
@@ -74,29 +102,35 @@ class MoexTable:
         return self.row_count()
 
     def get_row(self, position: int) -> Row:
-        """Return the row at the given 0-based position. Raises IndexError if out of bounds."""
+        """Return the row at the given zero-based *position*.
+
+        Raises:
+            IndexError: If *position* is out of range.
+        """
         partition_index, local_index = self._get_local_index(position)
         if partition_index == -1:
             raise IndexError(f"row position {position} is out of range (0..{self.row_count() - 1})")
         return self._data_partitions[partition_index][local_index]
 
     def get_value(self, position: int, column: str) -> Value:
-        """Return the value at the given row position and column name."""
+        """Return the value at the given row *position* and *column* name."""
         row = self.get_row(position)
         col_pos = self.get_column_position(column)
         return row[col_pos]
 
     def get_rows(self) -> Iterator[Row]:
-        """Iterate over all rows in order."""
+        """Return an iterator over all rows in order."""
         for partition in self._data_partitions:
             yield from partition
 
     def extend(self, other: Self) -> None:
+        """Append all rows from *other* into this table in place."""
         for partition in other._data_partitions:
             self._data_partitions.append(partition)
         self._rebuild_data_offsets()
 
     def concat(self, other: Self) -> Self:
+        """Return a new table with rows from this table followed by rows from *other*."""
         return type(self)(
             self._metadata,
             self._columns,
@@ -107,6 +141,11 @@ class MoexTable:
         )
 
     def take(self, n: int) -> Self:
+        """Return a new table containing at most the first *n* rows.
+
+        Raises:
+            ValueError: If *n* is negative.
+        """
         if n < 0:
             raise ValueError("n must be positive")
 
@@ -177,12 +216,13 @@ class _MoexIndexedTableState(TypedDict):
 
 
 class MoexIndexedTable(Generic[IndexT]):
-    """Typed index view over a MoexTable.
+    """Typed, key-based view over a :class:`MoexTable` with a sorted index column.
 
-    Provides key-based access (binary search, range queries) on a sorted index column.
-    The underlying table is available via the `.table` property for positional access.
+    Provides key lookup and range queries via binary search on the
+    *index_column*. The underlying table is available via the :attr:`table`
+    property for positional access.
 
-    Usage::
+    Example::
 
         table = await client.req_table(path, 'history')
         indexed: MoexIndexedTable[date] = MoexIndexedTable(table, 'TRADEDATE')
@@ -203,41 +243,55 @@ class MoexIndexedTable(Generic[IndexT]):
 
     @property
     def table(self) -> MoexTable:
-        """The underlying table with positional access."""
+        """Return the underlying table for positional access."""
         return self._table
 
     @property
     def columns(self) -> list[str]:
+        """Return the list of column names."""
         return self._table.columns
 
     @property
     def index_column(self) -> str:
+        """Return the name of the index column."""
         return self._index_column
 
     def has_column(self, column: str) -> bool:
+        """Return whether the table contains a column with the given name."""
         return self._table.has_column(column)
 
     def get_column_position(self, column: str) -> int:
+        """Return the zero-based index of *column*.
+
+        Raises:
+            ValueError: If the column does not exist.
+        """
         return self._table.get_column_position(column)
 
     def get_column_metadata(self, column: str) -> ColumnMetadataEntry:
+        """Return the metadata entry for *column*.
+
+        Raises:
+            ValueError: If the column does not exist.
+        """
         return self._table.get_column_metadata(column)
 
     def row_count(self) -> int:
+        """Return the total number of rows."""
         return self._table.row_count()
 
     def __len__(self) -> int:
         return self._table.row_count()
 
     def get_row(self, key: IndexT) -> Row | None:
-        """Return the row matching the given index key, or None if not found."""
+        """Return the row matching *key*, or ``None`` if not found."""
         position = self._bisect_left(key, exact_match=True)
         if position is None:
             return None
         return self._table.get_row(position)
 
     def get_value(self, key: IndexT, column: str) -> Value | None:
-        """Return the value at the given index key and column, or None if key not found."""
+        """Return the value at *key* and *column*, or ``None`` if not found."""
         row = self.get_row(key)
         if row is None:
             return None
@@ -245,10 +299,12 @@ class MoexIndexedTable(Generic[IndexT]):
         return row[col_pos]
 
     def get_rows(self, range_from: IndexT | None = None, range_to: IndexT | None = None, inclusive_to: bool = True) -> Iterator[Row]:
-        """Iterate rows within the given index key range.
+        """Return an iterator over rows within the given index key range.
 
-        If range_from is None, starts from the first row.
-        If range_to is None, iterates to the last row.
+        Args:
+            range_from: Lower bound (inclusive). ``None`` starts from the first row.
+            range_to: Upper bound. ``None`` iterates to the last row.
+            inclusive_to: If ``True`` (default), *range_to* is inclusive.
         """
         count = self._table.row_count()
         if count == 0:
