@@ -17,12 +17,13 @@ Guidance for AI coding agents working in this repository.
   - `pyrightconfig.json`: strict type-checking rules for `packages/`.
   - `.github/workflows/ci.yml`: lint, type-check, test, and build matrix.
   - `.github/workflows/publish.yml`: tag-based PyPI publishing.
+  - `fixtures/`: shared JSON fixtures used by package tests.
 - Packages:
   - `packages/moexr-client/`
-    - `src/moexr/client/`: async HTTP client, result models, errors.
-    - `tests/`: unit tests + JSON fixtures in `tests/data/`.
+    - `src/moexr/client/`: async HTTP client, table models (`MoexTable`, `MoexIndexedTable`), errors.
+    - `tests/`: unit tests that use shared JSON fixtures from `fixtures/`.
   - `packages/moexr-pandas/`
-    - `src/moexr/pandas/`: conversion helpers (`MoexTableResult` -> `pandas.DataFrame`).
+    - `src/moexr/pandas/`: conversion helpers (`MoexTable`/`MoexIndexedTable` -> `pandas.DataFrame`).
     - `tests/`: pandas integration tests.
 
 ## Architecture and boundaries
@@ -56,7 +57,7 @@ Guidance for AI coding agents working in this repository.
    - `uv build --package moexr-pandas`
 
 ## Coding expectations
-- Follow PEP 8 and existing local style (ruff line length 100, single quotes).
+- Follow PEP 8 and existing local style (ruff line length 140, double quotes).
 - Prefer explicit types and keep public API behavior predictable.
 - Keep functions small/composable.
 - Avoid hidden coupling across packages.
