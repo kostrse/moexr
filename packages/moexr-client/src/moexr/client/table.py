@@ -8,7 +8,7 @@ from typing import Any, Generic, Self, TypedDict, TypeVar, cast
 Value = str | int | float | date | time | datetime | None
 Row = list[Value]
 
-if sys.version_info >= (3, 12):
+if sys.version_info >= (3, 13):
     IndexT = TypeVar("IndexT", str, int, float, date, time, datetime, default=int)
 else:
     IndexT = TypeVar("IndexT", str, int, float, date, time, datetime)
