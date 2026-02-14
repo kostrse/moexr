@@ -21,9 +21,9 @@ async def test_moex_client_attributes():
     """Test that MoexClient has the expected methods."""
     client = MoexClient()
     assert client is not None
-    assert hasattr(client, 'req')
-    assert hasattr(client, 'req_table')
-    assert hasattr(client, 'req_table_paginated')
+    assert hasattr(client, "req")
+    assert hasattr(client, "req_table")
+    assert hasattr(client, "req_table_paginated")
 
 
 @pytest.mark.asyncio
