@@ -15,7 +15,12 @@ def to_dataframe(
         raise TypeError("table must be provided")
 
     if isinstance(table, MoexIndexedTable):
+        if index_column is not None:
+            raise ValueError("index_column must not be provided for MoexIndexedTable")
+        resolved_index_column = table.index_column
         table = table.table
+    else:
+        resolved_index_column = index_column
 
     if not isinstance(table, MoexTable):  # type: ignore
         if inspect.isawaitable(table):
@@ -23,11 +28,11 @@ def to_dataframe(
         else:
             raise TypeError(f"table must be MoexTable or MoexIndexedTable, not {type(table).__name__}")
 
-    if index_column is not None:
-        if not isinstance(index_column, str):  # type: ignore
-            raise TypeError(f"index_column must be str, not {type(index_column).__name__}")
-        if index_column not in table.columns:
-            raise ValueError(f"index column '{index_column}' not found in table")
+    if resolved_index_column is not None:
+        if not isinstance(resolved_index_column, str):  # type: ignore
+            raise TypeError(f"index_column must be str, not {type(resolved_index_column).__name__}")
+        if resolved_index_column not in table.columns:
+            raise ValueError(f"index column '{resolved_index_column}' not found in table")
 
     row_count = table.row_count()
 
@@ -49,11 +54,11 @@ def to_dataframe(
     col_dict = dict(zip(table.columns, col_arr, strict=True))
 
     idx_col: Optional[np.ndarray] = None
-    if index_column is not None:
+    if resolved_index_column is not None:
         if exclude_index_column:
-            idx_col = col_dict.pop(index_column)
+            idx_col = col_dict.pop(resolved_index_column)
         else:
-            idx_col = col_dict[index_column]
+            idx_col = col_dict[resolved_index_column]
 
     return pd.DataFrame(col_dict, index=idx_col)
 
@@ -83,6 +88,8 @@ def _convert_value(value: Any, column_type: str, numpy_type: str) -> Any:
     if column_type == "date":
         if value is None:
             return None
+        elif isinstance(value, date):
+            return value
         else:
             return date.fromisoformat(value)
     elif column_type == "datetime":

@@ -2,20 +2,17 @@ from __future__ import annotations
 
 import json
 from datetime import date
-from pathlib import Path
 from typing import Any, cast
 
 import pytest
+from conftest import FIXTURES_DIR
 from moexr.client import MoexIndexedTable, MoexTable
 
 JsonObject = dict[str, Any]
 
 
-DATA_DIR = Path(__file__).parent / "data"
-
-
 def load_json(file_name: str, table_name: str) -> JsonObject:
-    path = DATA_DIR / file_name
+    path = FIXTURES_DIR / file_name
     with path.open("r", encoding="utf-8") as f:
         j = json.load(f)
         return j[table_name]
