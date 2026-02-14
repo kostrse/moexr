@@ -1,6 +1,6 @@
 [project]
 name = "moexr-pandas"
-version = "0.1.0"
+version = "0.2.0"
 description = "Pandas DataFrames support for moexr tables"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -23,7 +23,7 @@ classifiers = [
   "Topic :: Office/Business :: Financial :: Investment",
 ]
 dependencies = [
-  "moexr-client>=0.1.0",
+  "moexr-client>=0.2.0",
   "numpy>=1.23.2; python_version=='3.11'",
   "numpy>=1.26.0; python_version>='3.12'",
   "pandas>=2.3,<3",

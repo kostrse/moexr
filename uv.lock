@@ -385,7 +385,7 @@ wheels = [
 
 [[package]]
 name = "moexr-client"
-version = "0.1.2"
+version = "0.2.0"
 source = { editable = "packages/moexr-client" }
 dependencies = [
     { name = "aiohttp" },
@@ -396,7 +396,7 @@ requires-dist = [{ name = "aiohttp", specifier = "~=3.12" }]
 
 [[package]]
 name = "moexr-pandas"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "packages/moexr-pandas" }
 dependencies = [
     { name = "moexr-client" },
