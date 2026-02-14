@@ -3,20 +3,25 @@ from datetime import date
 from typing import Any, Optional
 
 import numpy as np
-from moexr.client import MoexTable
+from moexr.client import MoexIndexedTable, MoexTable
 
 import pandas as pd
 
 
-def to_dataframe(table: MoexTable, index_column: Optional[str] = None, exclude_index_column: bool = False) -> pd.DataFrame:
+def to_dataframe(
+    table: MoexTable | MoexIndexedTable[Any], index_column: Optional[str] = None, exclude_index_column: bool = False
+) -> pd.DataFrame:
     if table is None:  # type: ignore
         raise TypeError("table must be provided")
 
+    if isinstance(table, MoexIndexedTable):
+        table = table.table
+
     if not isinstance(table, MoexTable):  # type: ignore
         if inspect.isawaitable(table):
-            raise TypeError("expected MoexTable, got awaitable (did you forget to await?)")
+            raise TypeError("expected MoexTable or MoexIndexedTable, got awaitable (did you forget to await?)")
         else:
-            raise TypeError(f"table must be MoexTable, not {type(table).__name__}")
+            raise TypeError(f"table must be MoexTable or MoexIndexedTable, not {type(table).__name__}")
 
     if index_column is not None:
         if not isinstance(index_column, str):  # type: ignore
