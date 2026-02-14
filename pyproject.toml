@@ -21,10 +21,10 @@ package = false
 default-groups = ["dev"]
 
 [tool.ruff]
-line-length = 100
+line-length = 140
 lint.select = ["E", "F", "I", "UP", "B"]
 lint.ignore = ["E501", "UP045"]
-format.quote-style = "single"
+format.quote-style = "double"
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
