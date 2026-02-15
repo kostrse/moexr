@@ -1,7 +1,8 @@
 import asyncio
 import bisect
 from datetime import date, datetime, timedelta
-from typing import Any, cast
+from types import TracebackType
+from typing import Any, Self, cast
 
 import aiohttp
 
@@ -23,10 +24,24 @@ class MoexClient:
             self._client_session = aiohttp.ClientSession(base_url="https://apim.moex.com/", headers=headers)
 
         self._req_semaphore = asyncio.Semaphore(4)
+        self._closed = False
         self._lang = lang
 
     async def close(self) -> None:
-        await self._client_session.close()
+        if not self._closed:
+            self._closed = True
+            await self._client_session.close()
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        await self.close()
 
     async def req(self, path: list[str], query: dict[str, Any] | None = None) -> dict[str, MoexTable]:
         return await self._req(path, query)
@@ -210,6 +225,9 @@ class MoexClient:
         return merged_result
 
     async def _req(self, path: list[str], query: dict[str, Any] | None) -> dict[str, MoexTable]:
+        if self._closed:
+            raise MoexClientError("client is closed")
+
         query_params: dict[str, Any] = {}
         if query:
             query_params.update({key: _format_query(value) for key, value in query.items() if value is not None})
