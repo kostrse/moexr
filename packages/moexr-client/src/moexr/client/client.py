@@ -1,18 +1,19 @@
 import asyncio
 import bisect
-from datetime import date, datetime
-from typing import Any, Optional
+from datetime import date, datetime, timedelta
+from typing import Any, cast
 
 import aiohttp
 
-from .error import MoexClientError
+from .error import MoexClientError, PaginationError
+from .pagination import DatePagination, LimitOnly, OffsetPagination, Pagination
 from .table import MoexTable
 
-_REQ_LIMITS = [1, 5, 10, 20, 50, 100]
+_MAX_PAGES = 10_000
 
 
 class MoexClient:
-    def __init__(self, access_token: Optional[str] = None, lang: str = "ru"):
+    def __init__(self, access_token: str | None = None, lang: str = "ru"):
         if access_token is None:
             self._client_session = aiohttp.ClientSession(base_url="https://iss.moex.com/")
         else:
@@ -24,10 +25,37 @@ class MoexClient:
         self._req_semaphore = asyncio.Semaphore(4)
         self._lang = lang
 
-    async def req(self, path: list[str], query: Optional[dict[str, Any]] = None) -> dict[str, MoexTable]:
+    async def req(self, path: list[str], query: dict[str, Any] | None = None) -> dict[str, MoexTable]:
         return await self._req(path, query)
 
-    async def req_table(self, path: list[str], table_name: str, query: Optional[dict[str, Any]] = None) -> MoexTable:
+    async def req_table(
+        self,
+        path: list[str],
+        table_name: str,
+        query: dict[str, Any] | None = None,
+        *,
+        paginate: Pagination | None = None,
+        limit: int | None = None,
+    ) -> MoexTable:
+        if limit is not None and limit <= 0:
+            raise ValueError("limit must be a positive integer")
+
+        if paginate is None:
+            return await self._req_table(path, table_name, query, limit)
+        if isinstance(paginate, LimitOnly):
+            return await self._req_limit_only(path, table_name, query, paginate, limit)
+        if isinstance(paginate, OffsetPagination):
+            return await self._req_offset_paginated(path, table_name, query, paginate, limit)
+
+        pagination = cast(object, paginate)
+        if isinstance(pagination, DatePagination):
+            return await self._req_date_paginated(path, table_name, query, pagination, limit)
+
+        raise TypeError(f"paginate must be LimitOnly, OffsetPagination, DatePagination, or None; got {type(pagination).__name__}")
+
+    async def _req_table(
+        self, path: list[str], table_name: str, query: dict[str, Any] | None = None, limit: int | None = None
+    ) -> MoexTable:
         query_params: dict[str, Any] = {}
         if query:
             query_params.update({table_name + "." + key: value for key, value in query.items()})
@@ -35,48 +63,143 @@ class MoexClient:
         query_params["iss.only"] = table_name
 
         result = await self._req(path, query_params)
-        return result[table_name]
+        table = result[table_name]
 
-    async def req_table_paginated(
-        self, path: list[str], table_name: str, query: Optional[dict[str, Any]] = None, limit: Optional[int] = None
+        if limit is not None and len(table) > limit:
+            return table.take(limit)
+
+        return table
+
+    async def _req_limit_only(
+        self,
+        path: list[str],
+        table_name: str,
+        query: dict[str, Any] | None,
+        strategy: LimitOnly,
+        limit: int | None,
     ) -> MoexTable:
-        if limit is not None and limit <= 0:
-            raise ValueError("limit must be a positive")
+        _validate_pagination_query(query, {"limit"})
+
+        limit_sizes = strategy.limit_sizes
+        max_limit = limit_sizes[-1]
+
+        req_limit = max_limit
+        if limit is not None and limit < max_limit:
+            req_limit = _snap_limit(limit_sizes, limit)
+
+        query_params = dict(query or {})
+        query_params["limit"] = req_limit
+
+        return await self._req_table(path, table_name, query_params, limit)
+
+    async def _req_offset_paginated(
+        self,
+        path: list[str],
+        table_name: str,
+        query: dict[str, Any] | None,
+        strategy: OffsetPagination,
+        limit: int | None,
+    ) -> MoexTable:
+        reserved_keys = {"start"}
+        if strategy.limit_sizes is not None:
+            reserved_keys.add("limit")
+        _validate_pagination_query(query, reserved_keys)
 
         offset = 0
         remaining = limit
+        limit_sizes = strategy.limit_sizes
+        default_page_size = max(limit_sizes) if limit_sizes is not None else None
 
-        merged_result: Optional[MoexTable] = None
+        merged_result: MoexTable | None = None
 
-        while remaining is None or remaining > 0:
-            req_limit = _get_req_limit(remaining)
-
-            query_params: dict[str, Any] = {}
-            if query:
-                query_params.update(query)
-
+        for _ in range(_MAX_PAGES):
+            query_params = dict(query or {})
             query_params["start"] = offset
-            query_params["limit"] = req_limit
 
-            result = await self.req_table(path, table_name, query_params)
-            resp_count = len(result)
+            req_limit: int | None = None
+            if limit_sizes is not None:
+                assert default_page_size is not None
+                req_limit = default_page_size
+                if remaining is not None and remaining < default_page_size:
+                    req_limit = _snap_limit(limit_sizes, remaining)
+                query_params["limit"] = req_limit
 
-            if remaining is not None:
-                if resp_count > remaining:
-                    result = result.take(remaining)
-                    remaining = 0
-                else:
-                    remaining -= resp_count
-
+            page = await self._req_table(path, table_name, query_params, limit=None)
             if merged_result is None:
-                merged_result = result
-            else:
-                merged_result.extend(result)
+                merged_result = page.take(0)
 
-            if resp_count < req_limit:
+            page_count = len(page)
+            if page_count == 0:
                 break
 
-            offset += resp_count
+            raw_page_count = page_count
+            if remaining is not None and page_count > remaining:
+                page = page.take(remaining)
+                page_count = remaining
+
+            merged_result.extend(page)
+
+            if remaining is not None:
+                remaining -= page_count
+                if remaining == 0:
+                    break
+
+            if req_limit is not None and raw_page_count < req_limit:
+                break
+
+            next_offset = offset + raw_page_count
+            if next_offset <= offset:
+                raise PaginationError("offset pagination did not advance")
+            offset = next_offset
+        else:
+            raise PaginationError(f"pagination exceeded maximum page count ({_MAX_PAGES})")
+
+        assert merged_result is not None
+        return merged_result
+
+    async def _req_date_paginated(
+        self,
+        path: list[str],
+        table_name: str,
+        query: dict[str, Any] | None,
+        strategy: DatePagination,
+        limit: int | None,
+    ) -> MoexTable:
+        boundary: date | None = None
+        remaining = limit
+        merged_result: MoexTable | None = None
+
+        for _ in range(_MAX_PAGES):
+            query_params = dict(query or {})
+            if boundary is not None:
+                query_params["from"] = boundary
+
+            page = await self._req_table(path, table_name, query_params, limit=None)
+            if merged_result is None:
+                merged_result = page.take(0)
+
+            page_count = len(page)
+            if page_count == 0:
+                break
+
+            if remaining is not None and page_count > remaining:
+                page = page.take(remaining)
+                page_count = remaining
+
+            merged_result.extend(page)
+
+            if remaining is not None:
+                remaining -= page_count
+                if remaining == 0:
+                    break
+
+            max_date = _get_max_page_date(page, strategy.date_column)
+            next_boundary = max_date + timedelta(days=1)
+            if boundary is not None and next_boundary <= boundary:
+                raise PaginationError("date pagination boundary did not advance")
+            boundary = next_boundary
+        else:
+            raise PaginationError(f"pagination exceeded maximum page count ({_MAX_PAGES})")
 
         assert merged_result is not None
         return merged_result
@@ -92,7 +215,7 @@ class MoexClient:
             try:
                 async with self._client_session.get("/iss/" + "/".join(path) + ".json", params=query_params) as resp:
                     if resp.status != 200:
-                        raise MoexClientError(f"Request failed with status code: {resp.status}")
+                        raise MoexClientError(f"request failed with status code: {resp.status}")
 
                     result = await resp.json()
                     return {key: MoexTable.from_result(value) for key, value in result.items()}
@@ -111,16 +234,45 @@ def _format_query(value: Any) -> str:
         return str(value)
 
 
-def _get_req_limit(limit: int | None) -> int:
-    if limit is None:
-        return _REQ_LIMITS[-1]
+def _validate_pagination_query(query: dict[str, Any] | None, reserved_keys: set[str]) -> None:
+    if query is None:
+        return
 
-    if limit <= 0:
-        raise ValueError("request limit must be greater than 0")
+    conflicts = sorted(key for key in query if key in reserved_keys)
+    if conflicts:
+        conflict_keys = ", ".join(conflicts)
+        raise ValueError(f"query contains reserved pagination keys: {conflict_keys}")
 
-    idx = bisect.bisect_left(_REQ_LIMITS, limit)
 
-    if idx >= len(_REQ_LIMITS):
-        return _REQ_LIMITS[-1]
+def _snap_limit(limit_sizes: list[int], remaining: int) -> int:
+    if remaining <= 0:
+        raise ValueError("remaining must be a positive integer")
 
-    return _REQ_LIMITS[idx]
+    idx = bisect.bisect_left(limit_sizes, remaining)
+    if idx >= len(limit_sizes):
+        return limit_sizes[-1]
+    return limit_sizes[idx]
+
+
+def _get_max_page_date(page: MoexTable, date_column: str) -> date:
+    try:
+        date_pos = page.get_column_position(date_column)
+    except ValueError as e:
+        raise PaginationError(str(e)) from e
+
+    max_date: date | None = None
+    for row in page.get_rows():
+        value = row[date_pos]
+        if value is None:
+            continue
+        if type(value) is not date:
+            raise PaginationError(f"column '{date_column}' must contain date values")
+
+        row_date = value
+        if max_date is None or row_date > max_date:
+            max_date = row_date
+
+    if max_date is None:
+        raise PaginationError(f"column '{date_column}' contains no date values")
+
+    return max_date
