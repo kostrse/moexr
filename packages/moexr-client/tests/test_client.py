@@ -81,7 +81,7 @@ async def test_moex_client_attributes() -> None:
         assert hasattr(client, "req_table")
         assert not hasattr(client, "req_table_paginated")
     finally:
-        await client._client_session.close()
+        await client.close()
 
 
 @pytest.mark.asyncio
@@ -99,7 +99,7 @@ async def test_req_table_single_shot_and_query_scoping() -> None:
         try:
             result = await client.req_table(["securities"], table_name, query={"group_by": "type"})
         finally:
-            await client._client_session.close()
+            await client.close()
 
     assert len(result) == 3
     assert captured_params == [
@@ -126,7 +126,7 @@ async def test_req_table_limit_only_truncates_single_shot() -> None:
         try:
             result = await client.req_table(["securities"], table_name, limit=2)
         finally:
-            await client._client_session.close()
+            await client.close()
 
     assert len(result) == 2
     assert result.get_value(0, "ID") == 1
@@ -145,7 +145,7 @@ async def test_req_table_rejects_non_positive_limit() -> None:
         with pytest.raises(ValueError, match="positive integer"):
             await client.req_table(["securities"], "securities", limit=-1)
     finally:
-        await client._client_session.close()
+        await client.close()
 
 
 @pytest.mark.asyncio
@@ -155,7 +155,7 @@ async def test_req_table_rejects_unsupported_pagination_type() -> None:
         with pytest.raises(TypeError, match="paginate must be"):
             await client.req_table(["securities"], "securities", paginate=cast(Any, object()))
     finally:
-        await client._client_session.close()
+        await client.close()
 
 
 @pytest.mark.asyncio
@@ -177,7 +177,7 @@ async def test_req_table_offset_paginated_without_limit_sizes() -> None:
         try:
             result = await client.req_table(["securities"], table_name, paginate=OffsetPagination())
         finally:
-            await client._client_session.close()
+            await client.close()
 
     assert len(result) == 4
     assert [result.get_value(i, "ID") for i in range(4)] == [1, 2, 3, 4]
@@ -213,7 +213,7 @@ async def test_req_table_offset_paginated_page_size_snap_down() -> None:
                 limit=12,
             )
         finally:
-            await client._client_session.close()
+            await client.close()
 
     assert len(result) == 12
     assert captured_params[0]["securities.start"] == "0"
@@ -237,7 +237,7 @@ async def test_req_table_offset_paginated_detects_query_conflicts() -> None:
                 paginate=OffsetPagination(limit_sizes=[10]),
             )
     finally:
-        await client._client_session.close()
+        await client.close()
 
 
 @pytest.mark.asyncio
@@ -264,7 +264,7 @@ async def test_req_table_date_paginated_progresses_from_boundary() -> None:
                 paginate=DatePagination(date_column="TRADEDATE"),
             )
         finally:
-            await client._client_session.close()
+            await client.close()
 
     assert len(result) == 3
     assert [result.get_value(i, "ID") for i in range(3)] == [1, 2, 3]
@@ -297,7 +297,7 @@ async def test_req_table_date_paginated_respects_limit() -> None:
                 limit=2,
             )
         finally:
-            await client._client_session.close()
+            await client.close()
 
     assert len(result) == 2
     assert captured_params[0]["history.from"] == "2024-01-01"
@@ -328,7 +328,7 @@ async def test_req_table_date_paginated_detects_stalled_boundary() -> None:
                     paginate=DatePagination(date_column="TRADEDATE"),
                 )
         finally:
-            await client._client_session.close()
+            await client.close()
 
     assert captured_params[0]["history.from"] == "2024-01-01"
     assert captured_params[1]["history.from"] == "2024-01-02"
@@ -359,7 +359,7 @@ async def test_req_table_respects_max_pages_guard(monkeypatch: pytest.MonkeyPatc
                     paginate=OffsetPagination(limit_sizes=[1]),
                 )
         finally:
-            await client._client_session.close()
+            await client.close()
 
     assert captured_params[0]["securities.start"] == "0"
     assert captured_params[1]["securities.start"] == "1"
@@ -385,7 +385,7 @@ async def test_req_table_limit_only_snaps_up_to_supported_value() -> None:
                 limit=75,
             )
         finally:
-            await client._client_session.close()
+            await client.close()
 
     assert len(result) == 75
     assert captured_params[0]["security.limit"] == "100"
@@ -411,7 +411,7 @@ async def test_req_table_limit_only_uses_max_when_no_user_limit() -> None:
                 paginate=LimitOnly(limit_sizes=[10, 20, 100, 1000]),
             )
         finally:
-            await client._client_session.close()
+            await client.close()
 
     assert len(result) == 3
     assert captured_params[0]["asset_volumes.limit"] == "1000"
@@ -437,7 +437,7 @@ async def test_req_table_limit_only_uses_max_when_limit_exceeds_all() -> None:
                 limit=500,
             )
         finally:
-            await client._client_session.close()
+            await client.close()
 
     assert len(result) == 100
     assert captured_params[0]["security.limit"] == "100"
@@ -455,7 +455,7 @@ async def test_req_table_limit_only_detects_query_conflict() -> None:
                 paginate=LimitOnly(limit_sizes=[10, 20, 100]),
             )
     finally:
-        await client._client_session.close()
+        await client.close()
 
 
 @pytest.mark.asyncio
@@ -478,7 +478,7 @@ async def test_req_table_limit_only_exact_match_no_truncation() -> None:
                 limit=20,
             )
         finally:
-            await client._client_session.close()
+            await client.close()
 
     assert len(result) == 20
     assert captured_params[0]["security.limit"] == "20"

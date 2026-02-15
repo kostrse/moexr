@@ -25,6 +25,9 @@ class MoexClient:
         self._req_semaphore = asyncio.Semaphore(4)
         self._lang = lang
 
+    async def close(self) -> None:
+        await self._client_session.close()
+
     async def req(self, path: list[str], query: dict[str, Any] | None = None) -> dict[str, MoexTable]:
         return await self._req(path, query)
 
