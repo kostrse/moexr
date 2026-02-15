@@ -241,6 +241,111 @@ async def test_req_table_offset_paginated_detects_query_conflicts() -> None:
 
 
 @pytest.mark.asyncio
+async def test_req_table_offset_paginated_short_page_terminates() -> None:
+    table_name = "securities"
+    url = re.compile(r"https://iss\.moex\.com/iss/securities\.json")
+    captured_params: list[dict[str, str]] = []
+
+    payloads = [
+        _int_table_payload(table_name, [1, 2, 3]),
+    ]
+
+    with aioresponses() as mock:
+        _register_sequence(mock, url, payloads, captured_params)
+
+        client = MoexClient()
+        try:
+            result = await client.req_table(
+                ["securities"],
+                table_name,
+                paginate=OffsetPagination(limit_sizes=[10]),
+            )
+        finally:
+            await client.close()
+
+    assert len(result) == 3
+    assert [result.get_value(i, "ID") for i in range(3)] == [1, 2, 3]
+    assert len(captured_params) == 1
+    assert captured_params[0]["securities.limit"] == "10"
+
+
+@pytest.mark.asyncio
+async def test_req_table_offset_paginated_empty_first_page() -> None:
+    table_name = "securities"
+    url = re.compile(r"https://iss\.moex\.com/iss/securities\.json")
+    captured_params: list[dict[str, str]] = []
+
+    payloads = [
+        _int_table_payload(table_name, []),
+    ]
+
+    with aioresponses() as mock:
+        _register_sequence(mock, url, payloads, captured_params)
+
+        client = MoexClient()
+        try:
+            result = await client.req_table(
+                ["securities"],
+                table_name,
+                paginate=OffsetPagination(limit_sizes=[10]),
+            )
+        finally:
+            await client.close()
+
+    assert len(result) == 0
+    assert len(captured_params) == 1
+
+
+@pytest.mark.asyncio
+async def test_req_table_offset_paginated_max_pages_without_limit_sizes(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(client_module, "_MAX_PAGES", 2)
+
+    table_name = "securities"
+    url = re.compile(r"https://iss\.moex\.com/iss/securities\.json")
+    captured_params: list[dict[str, str]] = []
+
+    payloads = [
+        _int_table_payload(table_name, [1]),
+        _int_table_payload(table_name, [2]),
+    ]
+
+    with aioresponses() as mock:
+        _register_sequence(mock, url, payloads, captured_params)
+
+        client = MoexClient()
+        try:
+            with pytest.raises(PaginationError, match="maximum page count"):
+                await client.req_table(
+                    ["securities"],
+                    table_name,
+                    paginate=OffsetPagination(),
+                )
+        finally:
+            await client.close()
+
+    assert len(captured_params) == 2
+    assert captured_params[0]["securities.start"] == "0"
+    assert captured_params[1]["securities.start"] == "1"
+    assert "securities.limit" not in captured_params[0]
+    assert "securities.limit" not in captured_params[1]
+
+
+@pytest.mark.asyncio
+async def test_req_table_offset_paginated_detects_multiple_query_conflicts() -> None:
+    client = MoexClient()
+    try:
+        with pytest.raises(ValueError, match="limit.*start"):
+            await client.req_table(
+                ["securities"],
+                "securities",
+                query={"start": 0, "limit": 10},
+                paginate=OffsetPagination(limit_sizes=[10]),
+            )
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
 async def test_req_table_date_paginated_progresses_from_boundary() -> None:
     table_name = "history"
     url = re.compile(r"https://iss\.moex\.com/iss/history\.json")
@@ -331,6 +436,152 @@ async def test_req_table_date_paginated_detects_stalled_boundary() -> None:
             await client.close()
 
     assert captured_params[0]["history.from"] == "2024-01-01"
+    assert captured_params[1]["history.from"] == "2024-01-02"
+
+
+@pytest.mark.asyncio
+async def test_req_table_date_paginated_detects_query_conflicts() -> None:
+    client = MoexClient()
+    try:
+        with pytest.raises(ValueError, match="start"):
+            await client.req_table(
+                ["history"],
+                "history",
+                query={"start": 100},
+                paginate=DatePagination(date_column="TRADEDATE"),
+            )
+
+        with pytest.raises(ValueError, match="limit"):
+            await client.req_table(
+                ["history"],
+                "history",
+                query={"limit": 10},
+                paginate=DatePagination(date_column="TRADEDATE"),
+            )
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_req_table_date_paginated_missing_date_column() -> None:
+    table_name = "history"
+    url = re.compile(r"https://iss\.moex\.com/iss/history\.json")
+    captured_params: list[dict[str, str]] = []
+
+    payloads = [
+        _int_table_payload(table_name, [1, 2]),
+    ]
+
+    with aioresponses() as mock:
+        _register_sequence(mock, url, payloads, captured_params)
+
+        client = MoexClient()
+        try:
+            with pytest.raises(PaginationError, match="TRADEDATE"):
+                await client.req_table(
+                    ["history"],
+                    table_name,
+                    paginate=DatePagination(date_column="TRADEDATE"),
+                )
+        finally:
+            await client.close()
+
+
+@pytest.mark.asyncio
+async def test_req_table_date_paginated_all_null_date_column() -> None:
+    table_name = "history"
+    url = re.compile(r"https://iss\.moex\.com/iss/history\.json")
+    captured_params: list[dict[str, str]] = []
+
+    payloads = [
+        _table_payload(
+            table_name,
+            metadata={
+                "TRADEDATE": {"type": "date", "bytes": 10, "max_size": 0},
+                "ID": {"type": "int32"},
+            },
+            columns=["TRADEDATE", "ID"],
+            data=[[None, 1], [None, 2]],
+        ),
+    ]
+
+    with aioresponses() as mock:
+        _register_sequence(mock, url, payloads, captured_params)
+
+        client = MoexClient()
+        try:
+            with pytest.raises(PaginationError, match="no date values"):
+                await client.req_table(
+                    ["history"],
+                    table_name,
+                    paginate=DatePagination(date_column="TRADEDATE"),
+                )
+        finally:
+            await client.close()
+
+
+@pytest.mark.asyncio
+async def test_req_table_date_paginated_non_date_type_in_column() -> None:
+    table_name = "history"
+    url = re.compile(r"https://iss\.moex\.com/iss/history\.json")
+    captured_params: list[dict[str, str]] = []
+
+    payloads = [
+        _table_payload(
+            table_name,
+            metadata={
+                "TRADEDATE": {"type": "string"},
+                "ID": {"type": "int32"},
+            },
+            columns=["TRADEDATE", "ID"],
+            data=[["2024-01-01", 1]],
+        ),
+    ]
+
+    with aioresponses() as mock:
+        _register_sequence(mock, url, payloads, captured_params)
+
+        client = MoexClient()
+        try:
+            with pytest.raises(PaginationError, match="must contain date values"):
+                await client.req_table(
+                    ["history"],
+                    table_name,
+                    paginate=DatePagination(date_column="TRADEDATE"),
+                )
+        finally:
+            await client.close()
+
+
+@pytest.mark.asyncio
+async def test_req_table_date_paginated_max_pages_guard(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(client_module, "_MAX_PAGES", 2)
+
+    table_name = "history"
+    url = re.compile(r"https://iss\.moex\.com/iss/history\.json")
+    captured_params: list[dict[str, str]] = []
+
+    payloads = [
+        _date_table_payload(table_name, [("2024-01-01", 1)]),
+        _date_table_payload(table_name, [("2024-01-03", 2)]),
+    ]
+
+    with aioresponses() as mock:
+        _register_sequence(mock, url, payloads, captured_params)
+
+        client = MoexClient()
+        try:
+            with pytest.raises(PaginationError, match="maximum page count"):
+                await client.req_table(
+                    ["history"],
+                    table_name,
+                    paginate=DatePagination(date_column="TRADEDATE"),
+                )
+        finally:
+            await client.close()
+
+    assert len(captured_params) == 2
+    assert captured_params[0].get("history.from", "not-set") == "not-set"
     assert captured_params[1]["history.from"] == "2024-01-02"
 
 

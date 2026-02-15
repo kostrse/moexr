@@ -168,6 +168,8 @@ class MoexClient:
         strategy: DatePagination,
         limit: int | None,
     ) -> MoexTable:
+        _validate_pagination_query(query, {"start", "limit"})
+
         boundary: date | None = None
         remaining = limit
         merged_result: MoexTable | None = None
