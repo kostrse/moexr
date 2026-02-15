@@ -1,5 +1,6 @@
 import asyncio
 import bisect
+from collections.abc import Mapping
 from datetime import date, datetime, timedelta
 from types import TracebackType
 from typing import Any, Self, cast
@@ -11,6 +12,9 @@ from .pagination import DatePagination, LimitOnly, OffsetPagination, Pagination
 from .table import MoexTable
 
 _MAX_PAGES = 10_000
+
+QueryScalar = str | int | float | bool | date | datetime
+Query = Mapping[str, QueryScalar | None]
 
 
 class MoexClient:
@@ -43,14 +47,14 @@ class MoexClient:
     ) -> None:
         await self.close()
 
-    async def req(self, path: list[str], query: dict[str, Any] | None = None) -> dict[str, MoexTable]:
+    async def req(self, path: list[str], query: Query | None = None) -> dict[str, MoexTable]:
         return await self._req(path, query)
 
     async def req_table(
         self,
         path: list[str],
         table_name: str,
-        query: dict[str, Any] | None = None,
+        query: Query | None = None,
         *,
         paginate: Pagination | None = None,
         limit: int | None = None,
@@ -71,9 +75,7 @@ class MoexClient:
 
         raise TypeError(f"paginate must be LimitOnly, OffsetPagination, DatePagination, or None; got {type(pagination).__name__}")
 
-    async def _req_table(
-        self, path: list[str], table_name: str, query: dict[str, Any] | None = None, limit: int | None = None
-    ) -> MoexTable:
+    async def _req_table(self, path: list[str], table_name: str, query: Query | None = None, limit: int | None = None) -> MoexTable:
         query_params: dict[str, Any] = {}
         if query:
             query_params.update({table_name + "." + key: value for key, value in query.items()})
@@ -92,7 +94,7 @@ class MoexClient:
         self,
         path: list[str],
         table_name: str,
-        query: dict[str, Any] | None,
+        query: Query | None,
         strategy: LimitOnly,
         limit: int | None,
     ) -> MoexTable:
@@ -114,7 +116,7 @@ class MoexClient:
         self,
         path: list[str],
         table_name: str,
-        query: dict[str, Any] | None,
+        query: Query | None,
         strategy: OffsetPagination,
         limit: int | None,
     ) -> MoexTable:
@@ -179,7 +181,7 @@ class MoexClient:
         self,
         path: list[str],
         table_name: str,
-        query: dict[str, Any] | None,
+        query: Query | None,
         strategy: DatePagination,
         limit: int | None,
     ) -> MoexTable:
@@ -224,7 +226,7 @@ class MoexClient:
         assert merged_result is not None
         return merged_result
 
-    async def _req(self, path: list[str], query: dict[str, Any] | None) -> dict[str, MoexTable]:
+    async def _req(self, path: list[str], query: Query | None) -> dict[str, MoexTable]:
         if self._closed:
             raise MoexClientError("client is closed")
 
@@ -246,18 +248,17 @@ class MoexClient:
                 raise MoexClientError(str(e)) from e
 
 
-def _format_query(value: Any) -> str:
+def _format_query(value: QueryScalar) -> str:
     if isinstance(value, bool):
         return "1" if value else "0"
-    if isinstance(value, date):
-        return value.isoformat()
     if isinstance(value, datetime):
         return value.isoformat(" ", timespec="seconds")
-    else:
-        return str(value)
+    if isinstance(value, date):
+        return value.isoformat()
+    return str(value)
 
 
-def _validate_pagination_query(query: dict[str, Any] | None, reserved_keys: set[str]) -> None:
+def _validate_pagination_query(query: Query | None, reserved_keys: set[str]) -> None:
     if query is None:
         return
 
