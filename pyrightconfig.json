@@ -38,11 +38,5 @@
   "reportSelfClsParameterName": true,
   "reportImplicitStringConcatenation": false,
   "reportUnboundVariable": true,
-  "reportUndefinedVariable": true,
-  "include": [
-    "packages"
-  ],
-  "ignore": [
-    "**/__init__.py"
-  ]
+  "reportUndefinedVariable": true
 }
