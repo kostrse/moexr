@@ -35,7 +35,7 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 module-root = "src"
-module-name = "moexr"
+module-name = "moexr.query"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
