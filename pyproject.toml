@@ -11,7 +11,7 @@ dev = [
   "pytest~=9.0",
   "pytest-asyncio~=1.1",
   "coverage[toml]",
-  "ruff~=0.13",
+  "ruff~=0.15",
   "pyright",
   "aioresponses~=0.7",
 ]
