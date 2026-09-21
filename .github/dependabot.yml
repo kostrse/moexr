@@ -1,28 +1,21 @@
 version: 2
-
 updates:
-  - package-ecosystem: "uv"
-    directory: "/"
+  - package-ecosystem: github-actions
+    directory: /
     schedule:
-      interval: "weekly"
-    groups:
-      production-major:
-        dependency-type: "production"
-        update-types:
-          - "major"
-      production-minor:
-        dependency-type: "production"
-        update-types:
-          - "minor"
-          - "patch"
-      development:
-        dependency-type: "development"
-
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
+      interval: monthly
     groups:
       github-actions:
-        patterns:
-          - "*"
+        patterns: ["*"]
+
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      runtime-dependencies:
+        dependency-type: production
+        update-types: ["minor", "patch"]
+      dev-dependencies:
+        dependency-type: development
+        update-types: ["minor", "patch"]
