@@ -23,7 +23,7 @@ classifiers = [
   "Topic :: Office/Business :: Financial :: Investment",
 ]
 dependencies = [
-  "aiohttp~=3.12",
+  "aiohttp~=3.14",
 ]
 
 [build-system]
