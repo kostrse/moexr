@@ -24,8 +24,8 @@ classifiers = [
 ]
 dependencies = [
   "moexr-client>=0.2.0",
-  "numpy>=1.23.2; python_version=='3.11'",
-  "numpy>=1.26.0; python_version>='3.12'",
+  "numpy>=2.4.6; python_version=='3.11'",
+  "numpy>=2.4.6; python_version>='3.12'",
   "pandas>=2.3,<3",
 ]
 
