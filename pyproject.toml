@@ -9,7 +9,7 @@ members = ["packages/*"]
 [dependency-groups]
 dev = [
   "pytest~=9.2",
-  "pytest-asyncio~=1.4",
+  "pytest-asyncio~=1.5",
   "coverage[toml]",
   "ruff~=0.17",
   "pyright",
