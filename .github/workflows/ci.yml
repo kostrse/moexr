@@ -16,6 +16,7 @@ jobs:
         python_version: [ "3.11", "3.12", "3.13", "3.14" ]
         pkg:
           - moexr-client
+          - moexr
           - moexr-pandas
 
     steps:

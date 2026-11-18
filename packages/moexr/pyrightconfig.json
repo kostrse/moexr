@@ -1,0 +1,5 @@
+{
+  "extends": "../../pyrightconfig.json",
+  "include": ["."],
+  "extraPaths": ["src", "../moexr-client/src"]
+}
